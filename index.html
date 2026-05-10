@@ -773,11 +773,22 @@
   }
 
   // ---------- TTS ----------
+  function getFemaleVoice(){
+    const voices = window.speechSynthesis.getVoices();
+    // Prefer English female voices; fall back to any female voice, then any voice
+    return voices.find(v => /female/i.test(v.name) && /en[-_]/i.test(v.lang))
+        || voices.find(v => /female/i.test(v.name))
+        || voices.find(v => /\bzira\b|\bsamantha\b|\bvictoria\b|\bmoira\b|\bfiona\b|\bkaren\b|\btessa\b|\bsusan\b|\bheather\b|\bcortana\b/i.test(v.name))
+        || null;
+  }
+
   function speak(text){
     try{
       if (!('speechSynthesis' in window)) return;
       const u = new SpeechSynthesisUtterance(text);
       u.rate = 1.0; u.pitch = 1.0; u.volume = 1.0;
+      const voice = getFemaleVoice();
+      if (voice) u.voice = voice;
       window.speechSynthesis.cancel();
       window.speechSynthesis.speak(u);
     }catch(e){ /* ignore */ }
@@ -940,6 +951,9 @@
 
   function startCountdown(){
     show('countdown');
+    cdNum.textContent = '';
+    cdLabel.textContent = 'Drivers pick up your controllers…';
+    speak('Drivers pick up your controllers');
     const seq = ['3','2','1','GO'];
     let i = 0;
     const step = () => {
@@ -958,7 +972,7 @@
         setTimeout(startMatch, 700);
       }
     };
-    step();
+    setTimeout(step, 2500);
   }
 
   // ---------- Match ----------
@@ -972,11 +986,51 @@
 
   let tickHandle = null;
   let endsAt = 0;
+  let whistlePlayed = false;
+
+  // ---------- Train whistle via Web Audio ----------
+  function playTrainWhistle(){
+    try{
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      // A classic train whistle chord: fundamental ~440 Hz + harmonics
+      const frequencies = [440, 554, 660, 880];
+      const gainNode = ctx.createGain();
+      gainNode.gain.setValueAtTime(0, ctx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.7, ctx.currentTime + 0.05);
+      gainNode.gain.setValueAtTime(0.7, ctx.currentTime + 1.2);
+      gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 1.6);
+      gainNode.connect(ctx.destination);
+
+      frequencies.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const oscGain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.value = freq;
+        // Add slight vibrato for a steam-whistle feel
+        const lfo = ctx.createOscillator();
+        const lfoGain = ctx.createGain();
+        lfo.frequency.value = 5;
+        lfoGain.gain.value = 4;
+        lfo.connect(lfoGain);
+        lfoGain.connect(osc.frequency);
+        lfo.start();
+        oscGain.gain.value = i === 0 ? 0.5 : 0.25;
+        osc.connect(oscGain);
+        oscGain.connect(gainNode);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 1.6);
+        lfo.stop(ctx.currentTime + 1.6);
+      });
+
+      setTimeout(() => ctx.close(), 2000);
+    }catch(e){ /* ignore if audio unavailable */ }
+  }
 
   function startMatch(){
     state.timeLeft = MATCH_SECONDS;
     state.hits = 0;
     state.overflow = 0;
+    whistlePlayed = false;
     updateTimer();
     updateHitsLine();
     show('match');
@@ -986,6 +1040,10 @@
       const remainMs = Math.max(0, endsAt - performance.now());
       state.timeLeft = Math.ceil(remainMs / 1000);
       updateTimer();
+      if (!whistlePlayed && state.timeLeft <= 20){
+        whistlePlayed = true;
+        playTrainWhistle();
+      }
       if (remainMs <= 0){
         endMatch();
         return;
@@ -1042,10 +1100,39 @@
     if (confirm('End the dig early?')) endMatch();
   });
 
+  function playBuzzer(){
+    try{
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const duration = 3;
+      // Buzzer: square wave at ~160 Hz with rapid on/off pulsing (0.25 s on, 0.1 s off)
+      const gainNode = ctx.createGain();
+      gainNode.gain.setValueAtTime(0, ctx.currentTime);
+      gainNode.connect(ctx.destination);
+
+      const pulseOn  = 0.25;
+      const pulseOff = 0.10;
+      const period   = pulseOn + pulseOff;
+      const pulses   = Math.floor(duration / period);
+      for (let p = 0; p < pulses; p++){
+        const t0 = ctx.currentTime + p * period;
+        gainNode.gain.setValueAtTime(0.85, t0);
+        gainNode.gain.setValueAtTime(0,    t0 + pulseOn);
+      }
+
+      const osc = ctx.createOscillator();
+      osc.type = 'square';
+      osc.frequency.value = 160;
+      osc.connect(gainNode);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + duration);
+      setTimeout(() => ctx.close(), (duration + 0.5) * 1000);
+    }catch(e){ /* ignore if audio unavailable */ }
+  }
+
   function endMatch(){
     if (tickHandle) cancelAnimationFrame(tickHandle);
     tickHandle = null;
-    speak('Time!');
+    playBuzzer();
     if (navigator.vibrate) navigator.vibrate([60, 60, 120]);
     state.timeLeft = 0;
     showPost();
