@@ -1,0 +1,1431 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Dig Site Scorer" />
+<meta name="theme-color" content="#3a2817" />
+<title>Dig Site Scorer</title>
+<style>
+  /* ---------- Archaeology / field-journal palette ---------- */
+  :root{
+    --parchment:    #f0e3c4;
+    --parchment-2:  #e6d5ac;
+    --sand:         #d8c195;
+    --leather:      #5a3a1f;
+    --leather-2:    #3a2817;
+    --terracotta:   #a0431c;
+    --terracotta-2: #c25a2a;
+    --gold:         #c9a449;
+    --gold-2:       #e3c060;
+    --ink:          #2b1a0a;
+    --ink-soft:     #5a4528;
+    --green-stamp:  #4d6b3a;
+    --red-stamp:    #8a2a1c;
+    --shadow:       0 4px 14px rgba(58,40,23,.30);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;overscroll-behavior:none}
+  body{
+    font-family: "Iowan Old Style","Palatino Linotype","Georgia",serif;
+    color: var(--ink);
+    background:
+      radial-gradient(circle at 20% 10%, rgba(255,255,255,.55), transparent 55%),
+      radial-gradient(circle at 80% 90%, rgba(160,90,30,.20), transparent 60%),
+      repeating-linear-gradient(115deg, rgba(90,60,30,.05) 0 2px, transparent 2px 6px),
+      var(--parchment);
+    user-select:none;
+    -webkit-user-select:none;
+  }
+  /* Decorative torn edge / stitched border on the page */
+  body::before{
+    content:"";
+    position:fixed; inset:8px;
+    border:2px dashed rgba(90,60,30,.35);
+    border-radius:14px;
+    pointer-events:none;
+    z-index:5;
+  }
+  .app{
+    position:relative;
+    height:100%;
+    display:flex; flex-direction:column;
+    padding: max(env(safe-area-inset-top), 18px) max(env(safe-area-inset-right),18px)
+             max(env(safe-area-inset-bottom),18px) max(env(safe-area-inset-left),18px);
+  }
+  header, footer{ flex: 0 0 auto; }
+  header{
+    text-align:center;
+    padding-bottom:8px;
+    border-bottom: 2px solid rgba(90,60,30,.35);
+  }
+  header h1{
+    margin:0;
+    font-family:"Trajan Pro","Cinzel","Iowan Old Style","Georgia",serif;
+    letter-spacing:.18em;
+    font-size: clamp(20px, 4.5vw, 34px);
+    color: var(--leather-2);
+    text-transform:uppercase;
+    text-shadow: 0 1px 0 rgba(255,255,255,.6);
+  }
+  header .sub{
+    font-style:italic;
+    color: var(--ink-soft);
+    font-size: clamp(12px, 2vw, 16px);
+    margin-top:2px;
+  }
+  main{
+    flex:1 1 auto; min-height:0;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    gap:14px;
+    padding: 14px 6px;
+    overflow:hidden;
+  }
+
+  /* ---------- generic button ---------- */
+  .btn{
+    appearance:none; -webkit-appearance:none;
+    border: 2px solid var(--leather-2);
+    border-radius: 14px;
+    background: linear-gradient(180deg, var(--gold-2), var(--gold));
+    color: var(--leather-2);
+    font: 700 18px/1.1 "Iowan Old Style","Georgia",serif;
+    letter-spacing:.05em;
+    padding: 14px 22px;
+    cursor:pointer;
+    box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.5);
+    transition: transform .05s ease, filter .15s ease;
+    min-height: 56px;
+    text-transform:uppercase;
+  }
+  .btn:active{ transform: translateY(1px) scale(.99); filter: brightness(.95); }
+  .btn[disabled]{ opacity:.45; cursor:not-allowed; filter:grayscale(.4); }
+  .btn.primary{
+    background: linear-gradient(180deg, var(--terracotta-2), var(--terracotta));
+    color: #fff8e6;
+  }
+  .btn.dark{
+    background: linear-gradient(180deg, #6a4a2a, var(--leather));
+    color: #f3e5c2;
+  }
+  .btn.ghost{
+    background: transparent;
+    color: var(--leather-2);
+    box-shadow:none;
+    border: 2px dashed rgba(90,60,30,.55);
+  }
+
+  /* ---------- views ---------- */
+  .view{ width:100%; max-width: 760px; display:none; flex-direction:column; align-items:center; gap:14px;}
+  .view.active{ display:flex; }
+  /* Log view should be scrollable since it can grow tall (table + reports + chart) */
+  #view-log.active{
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    justify-content: flex-start;
+  }
+
+  /* ---- Setup view ---- */
+  .card{
+    width:100%;
+    background: linear-gradient(180deg, #fbf2d6, #f0e3c4);
+    border:2px solid var(--leather-2);
+    border-radius: 18px;
+    box-shadow: var(--shadow);
+    padding: 18px 20px;
+  }
+  .card h2{
+    margin:0 0 8px 0;
+    font-family:"Trajan Pro","Cinzel","Georgia",serif;
+    text-transform:uppercase;
+    letter-spacing:.14em;
+    color:var(--leather-2);
+    font-size: clamp(16px, 2.6vw, 22px);
+  }
+  .field{
+    display:flex; flex-direction:column; gap:6px;
+    margin: 10px 0;
+  }
+  .field label{
+    font-style:italic; color:var(--ink-soft);
+    font-size: 14px;
+  }
+  input[type="text"]{
+    appearance:none; -webkit-appearance:none;
+    border:2px solid var(--leather-2);
+    border-radius:10px;
+    background: #fff8e6;
+    font: 600 22px/1.2 "Iowan Old Style","Georgia",serif;
+    color:var(--ink);
+    padding: 12px 14px;
+    width:100%;
+    box-shadow: inset 0 1px 0 rgba(0,0,0,.06);
+  }
+  .row{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+  .row > .btn{ flex:1 1 auto; }
+
+  /* ---- Countdown view ---- */
+  .countdown{
+    font-family:"Trajan Pro","Cinzel","Georgia",serif;
+    font-size: clamp(120px, 36vw, 320px);
+    font-weight: 800;
+    color: var(--terracotta);
+    text-shadow:
+      0 2px 0 rgba(0,0,0,.10),
+      0 8px 24px rgba(160,67,28,.30);
+    line-height:1;
+    animation: pop .8s ease;
+  }
+  @keyframes pop{
+    0%   { transform: scale(.4); opacity:0; }
+    40%  { transform: scale(1.15); opacity:1; }
+    100% { transform: scale(1); opacity:1; }
+  }
+
+  /* ---- Match view ---- */
+  .timer-wrap{ text-align:center; }
+  .timer{
+    font-family: "Menlo","Consolas",monospace;
+    font-size: clamp(36px, 8vw, 76px);
+    font-weight: 800;
+    color: var(--leather-2);
+    letter-spacing: .04em;
+    line-height: 1;
+    text-shadow: 0 2px 0 rgba(255,255,255,.5);
+  }
+  .timer.warn{ color: var(--terracotta); }
+  .timer.crit{ color: var(--red-stamp); animation: pulse .6s infinite alternate; }
+  @keyframes pulse{ to{ transform: scale(1.04);} }
+  .score-mini{
+    font-style:italic;
+    color: var(--ink-soft);
+    margin-top: 4px;
+    font-size: clamp(12px, 1.8vw, 16px);
+  }
+  .plus3{
+    margin-top: 8px;
+    width: min(58vw, 44vh, 320px);
+    height: min(58vw, 44vh, 320px);
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 30% 25%, rgba(255,255,255,.55), transparent 55%),
+      linear-gradient(180deg, var(--terracotta-2), #7d2e12);
+    color: #fff8e6;
+    border: 5px double var(--gold);
+    font-family:"Trajan Pro","Cinzel","Georgia",serif;
+    font-size: clamp(40px, 10vw, 80px);
+    font-weight: 900;
+    letter-spacing: .04em;
+    box-shadow: 0 8px 22px rgba(58,40,23,.45),
+                inset 0 0 0 4px rgba(255,255,255,.10);
+    cursor:pointer;
+    transition: transform .04s ease, filter .15s ease;
+    user-select:none;
+    display:flex; align-items:center; justify-content:center;
+    padding:0; line-height:1;
+  }
+  .plus3{ display:none !important; }
+  .artifact-row{
+    display:flex;
+    gap: 14px;
+    width: 100%;
+    max-width: 520px;
+    margin: 8px auto 0;
+    align-items: stretch;
+    justify-content: center;
+  }
+  .score-btn{
+    flex: 1 1 0;
+    appearance:none; -webkit-appearance:none;
+    border: 5px double var(--gold);
+    border-radius: 22px;
+    color: #fff8e6;
+    font-family:"Trajan Pro","Cinzel","Georgia",serif;
+    font-weight: 900;
+    letter-spacing: .04em;
+    cursor:pointer;
+    user-select:none;
+    padding: 18px 10px;
+    min-height: min(34vh, 240px);
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    gap: 6px;
+    box-shadow: 0 8px 22px rgba(58,40,23,.45),
+                inset 0 0 0 4px rgba(255,255,255,.10);
+    transition: transform .04s ease, filter .15s ease;
+  }
+  .score-btn:active{ transform: scale(.96); filter:brightness(.92); }
+  .score-btn.flash{ animation: stamp .35s ease; }
+  .score-btn.primary-art{
+    background:
+      radial-gradient(circle at 30% 25%, rgba(255,255,255,.5), transparent 55%),
+      linear-gradient(180deg, var(--terracotta-2), #7d2e12);
+  }
+  .score-btn.overflow-art{
+    background:
+      radial-gradient(circle at 30% 25%, rgba(255,255,255,.45), transparent 55%),
+      linear-gradient(180deg, #b9923e, #6f5118);
+  }
+  .score-btn .art-pts{
+    font-size: clamp(40px, 11vw, 80px);
+    line-height: 1;
+  }
+  .score-btn .art-label{
+    font-size: clamp(13px, 2.4vw, 18px);
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    text-align:center;
+  }
+  .plus3.flash{ animation: stamp .35s ease; }
+  @keyframes stamp{
+    0%   { transform: scale(1);}
+    35%  { transform: scale(1.08);}
+    100% { transform: scale(1);}
+  }
+  .floaters{ position:absolute; pointer-events:none; inset:0; overflow:hidden;}
+  .floater{
+    position:absolute;
+    font-family:"Trajan Pro","Cinzel","Georgia",serif;
+    font-weight: 900;
+    color: var(--gold);
+    text-shadow: 0 1px 0 rgba(0,0,0,.25);
+    animation: rise 900ms ease-out forwards;
+  }
+  @keyframes rise{
+    0%   { opacity:0; transform: translateY(0)   scale(.6); }
+    20%  { opacity:1; }
+    100% { opacity:0; transform: translateY(-120px) scale(1.2); }
+  }
+
+  /* ---- End-of-match view ---- */
+  .section-title{
+    font-family:"Trajan Pro","Cinzel","Georgia",serif;
+    text-transform:uppercase;
+    letter-spacing:.16em;
+    color: var(--leather-2);
+    font-size: clamp(14px, 2.4vw, 18px);
+    margin: 4px 0 6px;
+    width:100%;
+    border-bottom: 1px dashed rgba(90,60,30,.4);
+    padding-bottom: 4px;
+  }
+  .park-row{
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    width:100%;
+  }
+  .park-row .btn{ font-size: clamp(14px, 2.6vw, 18px); padding: 16px 8px; }
+  .park-row .btn.selected{
+    background: linear-gradient(180deg, var(--green-stamp), #2f4421);
+    color:#fff8e6;
+    border-color:#1f2d15;
+  }
+
+  .pattern-grid{
+    display:grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    width:100%;
+  }
+  .pattern-grid .btn{
+    font-family:"Trajan Pro","Cinzel","Georgia",serif;
+    font-size: clamp(20px, 4.5vw, 30px);
+    padding: 18px 0;
+    min-height: 64px;
+  }
+  .pattern-grid .btn.selected{
+    background: linear-gradient(180deg, var(--terracotta-2), var(--terracotta));
+    color:#fff8e6;
+  }
+
+  /* ---- Result view ---- */
+  .total{
+    font-family:"Trajan Pro","Cinzel","Georgia",serif;
+    font-size: clamp(72px, 18vw, 160px);
+    color: var(--terracotta);
+    font-weight: 900;
+    line-height: 1.05;
+    padding-bottom: .08em;
+    text-shadow: 0 2px 0 rgba(0,0,0,.12);
+  }
+  .breakdown{
+    margin-left:auto; margin-right:auto;
+    width: auto;
+    max-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  .breakdown td{
+    padding: 8px 10px;
+    border-bottom: 1px dashed rgba(90,60,30,.35);
+    font-size: clamp(14px, 2vw, 18px);
+  }
+  .breakdown td:first-child{ text-align:right; padding-right: 18px; }
+  .breakdown td:last-child{ text-align:left; font-weight:700; font-variant-numeric: tabular-nums; padding-left: 4px; }
+  .breakdown tr.total-row td{
+    border-top: 2px solid var(--leather-2);
+    border-bottom:none;
+    padding-top: 12px;
+    font-family:"Trajan Pro","Cinzel","Georgia",serif;
+    text-transform:uppercase;
+    letter-spacing:.10em;
+    font-size: clamp(16px, 2.4vw, 20px);
+  }
+
+  /* ---- Log / saved scores ---- */
+  .log-table{
+    width:100%; border-collapse: collapse;
+    font-size: clamp(13px, 1.9vw, 16px);
+  }
+  .log-table th, .log-table td{
+    padding: 8px 10px;
+    text-align:left;
+    border-bottom: 1px dashed rgba(90,60,30,.35);
+  }
+  .log-table th{
+    font-family:"Trajan Pro","Cinzel","Georgia",serif;
+    text-transform:uppercase; letter-spacing:.10em;
+    font-size: 12px;
+    color: var(--ink-soft);
+  }
+  .log-table td.num, .log-table th.num{ text-align:right; font-variant-numeric: tabular-nums;}
+  .log-table td.act, .log-table th.act{ text-align:center; width:1%; white-space:nowrap; }
+  .log-table th.sortable{ cursor:pointer; user-select:none; }
+  .log-table th.sortable:hover{ color: var(--terracotta); }
+  .log-table th .sort-ind{
+    display:inline-block; width: 10px; margin-left: 4px;
+    color: var(--terracotta); font-size: 11px; opacity:.85;
+  }
+  .log-scroll{ max-height: 38vh; overflow:auto; }
+  .empty{ text-align:center; font-style:italic; color: var(--ink-soft); padding:14px;}
+  .btn-del{
+    appearance:none; border:1px solid rgba(138,42,28,.45);
+    background: rgba(138,42,28,.08);
+    color: var(--red-stamp);
+    font-family:"Trajan Pro","Cinzel","Georgia",serif;
+    font-size: 14px; line-height:1;
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    cursor:pointer;
+    display:inline-flex; align-items:center; justify-content:center;
+    transition: background .15s, transform .05s;
+  }
+  .btn-del:hover{ background: rgba(138,42,28,.18); }
+  .btn-del:active{ transform: scale(.94); }
+
+  /* ---- Name select / Dig team ---- */
+  select.name-select{
+    appearance:none; -webkit-appearance:none;
+    border:2px solid var(--leather-2);
+    border-radius:10px;
+    background: #fff8e6 url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'><path fill='%235a3a1f' d='M6 8 0 0h12z'/></svg>") no-repeat right 14px center / 12px 8px;
+    font: 600 22px/1.2 "Iowan Old Style","Georgia",serif;
+    color:var(--ink);
+    padding: 12px 36px 12px 14px;
+    width:100%;
+    box-shadow: inset 0 1px 0 rgba(0,0,0,.06);
+  }
+  .detail-note{
+    margin-top: 4px;
+    font-style:italic; color: var(--ink-soft); font-size: 13px;
+  }
+  .team-list{
+    list-style:none; margin: 4px 0 0; padding: 0;
+    border-top: 1px dashed rgba(90,60,30,.35);
+  }
+  .team-list li{
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 10px 4px;
+    border-bottom: 1px dashed rgba(90,60,30,.35);
+    gap: 10px;
+  }
+  .team-list .name{
+    font: 600 18px/1.2 "Iowan Old Style","Georgia",serif;
+    color: var(--ink);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .team-empty{
+    text-align:center; font-style:italic; color: var(--ink-soft);
+    padding: 14px 4px;
+  }
+  .add-row{
+    display:flex; gap:8px; align-items:stretch;
+    margin-top: 10px;
+  }
+  .add-row input[type="text"]{ flex:1 1 auto; }
+  .add-row .btn{ flex: 0 0 auto; min-height: 0; padding: 0 18px; font-size: 14px; }
+
+  /* ---- Daily report bar chart ---- */
+  .daily-chart{
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+  .daily-chart svg{ display:block; }
+  .daily-chart .bar{
+    fill: var(--terracotta);
+    transition: fill .15s;
+  }
+  .daily-chart .bar:hover{ fill: var(--terracotta-2); }
+  .daily-chart .bar-label{
+    font: 600 10px "Iowan Old Style","Georgia",serif;
+    fill: var(--ink);
+    text-anchor: middle;
+  }
+  .daily-chart .x-label{
+    font: 10px "Iowan Old Style","Georgia",serif;
+    fill: var(--ink-soft);
+    text-anchor: middle;
+  }
+  .daily-chart .y-label, .daily-chart .y-tick{
+    font: 10px "Iowan Old Style","Georgia",serif;
+    fill: var(--ink-soft);
+  }
+  .daily-chart .y-tick{ text-anchor: end; }
+  .daily-chart .axis{
+    stroke: rgba(90,60,30,.45);
+    stroke-width: 1;
+  }
+  .daily-chart .grid{
+    stroke: rgba(90,60,30,.18);
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+  }
+
+  /* ---- Reports ---- */
+  .reports{
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px dashed rgba(90,60,30,.4);
+  }
+  .reports h3{
+    font-family:"Trajan Pro","Cinzel","Georgia",serif;
+    text-transform:uppercase; letter-spacing:.14em;
+    color: var(--leather-2);
+    font-size: 14px;
+    margin: 0 0 8px;
+  }
+  .report-buttons{
+    display:flex; flex-wrap:wrap; gap:8px;
+  }
+  .report-buttons .btn{
+    flex: 1 1 auto;
+    min-height: 44px;
+    font-size: 13px;
+    padding: 10px 14px;
+  }
+  .report-buttons .btn.selected{
+    background: linear-gradient(180deg, var(--gold-2), var(--gold));
+    color: var(--ink);
+  }
+  .report-out{
+    margin-top: 10px;
+    padding: 12px 14px;
+    background: rgba(255,248,230,.7);
+    border: 1px dashed rgba(90,60,30,.4);
+    border-radius: 10px;
+    min-height: 48px;
+    font-size: 15px;
+    color: var(--ink);
+  }
+  .report-out:empty{ display:none; }
+  .report-out .headline{
+    font-family:"Trajan Pro","Cinzel","Georgia",serif;
+    font-size: 18px;
+    color: var(--terracotta);
+    letter-spacing: .04em;
+    margin-bottom: 4px;
+  }
+  .report-out .detail{
+    font-style: italic;
+    color: var(--ink-soft);
+    font-size: 13px;
+  }
+
+  /* ---- Footer ---- */
+  footer{
+    text-align:center;
+    color: var(--ink-soft);
+    font-style:italic;
+    font-size: 12px;
+    padding-top: 6px;
+    border-top: 1px dashed rgba(90,60,30,.4);
+  }
+  .stamp{
+    display:inline-block;
+    border:2px solid var(--red-stamp);
+    color: var(--red-stamp);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-family:"Trajan Pro","Cinzel","Georgia",serif;
+    text-transform:uppercase;
+    letter-spacing:.18em;
+    transform: rotate(-4deg);
+    font-size: 11px;
+    background: rgba(138,42,28,.06);
+  }
+
+  /* Landscape on phones: shrink some things */
+  @media (max-height: 520px) and (orientation:landscape){
+    main{ gap:8px; padding:6px;}
+    .plus3{ width: min(38vh, 280px); height: min(38vh, 280px); font-size: 56px; }
+    .timer{ font-size: 14vh; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Dig Site Scorer</h1>
+    <div class="sub">&mdash; Field Journal of the Robotics Expedition &mdash;</div>
+  </header>
+
+  <main>
+    <!-- ============ SETUP ============ -->
+    <section id="view-setup" class="view active">
+      <div class="card">
+        <h2>Expedition Log</h2>
+        <p style="margin:6px 0 4px; font-style:italic; color:var(--ink-soft);">
+          Record the lead archaeologist's name before launching the dig.
+        </p>
+        <div class="field">
+        <div class="field">
+          <label for="name-select">Archaeologist</label>
+          <select id="name-select" class="name-select"></select>
+          <div id="name-fallback" class="field" style="display:none; margin:8px 0 0;">
+            <input id="name-input" type="text" autocomplete="off" autocapitalize="words"
+                   placeholder="Enter your name" maxlength="24" />
+            <div class="detail-note">Your dig team is empty &mdash; add members below or type a name for this dig.</div>
+          </div>
+        </div>
+        <div class="row">
+          <button id="btn-start" class="btn primary">Begin Expedition</button>
+          <button id="btn-manage-team" class="btn">Dig Team</button>
+          <button id="btn-show-log" class="btn ghost">View Past Digs</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ COUNTDOWN ============ -->
+    <section id="view-countdown" class="view">
+      <div class="countdown" id="countdown-num">3</div>
+      <div class="sub" id="countdown-label">Prepare to dig...</div>
+    </section>
+
+    <!-- ============ MATCH ============ -->
+    <section id="view-match" class="view">
+      <div class="timer-wrap">
+        <div class="timer" id="timer">2:00</div>
+        <div class="score-mini" id="hits-line">0 artifacts &middot; 0 pts</div>
+      </div>
+      <button class="plus3" id="plus3" aria-label="Score artifact">+3</button>
+      <div class="artifact-row">
+        <button class="score-btn primary-art" id="btn-artifact" type="button" aria-label="Score artifact, 3 points">
+          <span class="art-pts">+3</span>
+          <span class="art-label">Artifact</span>
+        </button>
+        <button class="score-btn overflow-art" id="btn-overflow" type="button" aria-label="Score overflow artifact, 1 point">
+          <span class="art-pts">+1</span>
+          <span class="art-label">Overflow Artifact</span>
+        </button>
+      </div>
+      <div class="floaters" id="floaters" aria-hidden="true"></div>
+      <button id="btn-stop-early" class="btn ghost" style="margin-top:6px;">End Dig Early</button>
+    </section>
+
+    <!-- ============ POST-MATCH ============ -->
+    <section id="view-post" class="view">
+      <div class="card">
+        <h2>Return to Camp</h2>
+        <div class="park-row" id="park-row">
+          <button class="btn" data-park="full">Full Park<br><small>+10</small></button>
+          <button class="btn" data-park="partial">Partial Park<br><small>+5</small></button>
+          <button class="btn" data-park="none">No Park<br><small>+0</small></button>
+        </div>
+
+        <div class="section-title" style="margin-top:14px;">Classified Artifacts</div>
+        <div class="pattern-grid" id="pattern-grid"></div>
+
+        <div class="row" style="margin-top:16px;">
+          <button id="btn-tally" class="btn primary" disabled>Tally the Score</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ RESULT ============ -->
+    <section id="view-result" class="view">
+      <div class="card" style="text-align:center;">
+        <div class="stamp">Logged</div>
+        <h2 id="result-name" style="margin-top:8px;">Archaeologist</h2>
+        <div class="total" id="result-total">0</div>
+        <div class="sub" style="margin-top:6px;">total points</div>
+
+        <table class="breakdown" style="margin-top:14px;">
+          <tbody id="breakdown-body"></tbody>
+        </table>
+
+        <div class="row" style="margin-top:16px;">
+          <button id="btn-again" class="btn primary">New Dig</button>
+          <button id="btn-result-log" class="btn">Past Digs</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ TEAM ============ -->
+    <section id="view-team" class="view">
+      <div class="card">
+        <h2>Dig Team Roster</h2>
+        <p style="margin:6px 0 4px; font-style:italic; color:var(--ink-soft);">
+          Add the archaeologists on your team. They’ll appear in the dropdown on the Expedition Log.
+        </p>
+        <ul id="team-list" class="team-list"></ul>
+        <div class="add-row">
+          <input id="team-add-input" type="text" autocomplete="off" autocapitalize="words"
+                 placeholder="New team member" maxlength="24" />
+          <button id="btn-team-add" class="btn primary">Add</button>
+        </div>
+        <div class="row" style="margin-top:14px;">
+          <button id="btn-team-back" class="btn">Back to the Dig</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ LOG ============ -->
+    <section id="view-log" class="view">
+      <div class="card">
+        <h2>Past Digs</h2>
+        <div class="log-scroll">
+          <table class="log-table" id="log-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th class="sortable" data-sort="name">Archaeologist<span class="sort-ind"></span></th>
+                <th class="num sortable" data-sort="hits">+3s<span class="sort-ind"></span></th>
+                <th class="sortable" data-sort="park">Park<span class="sort-ind"></span></th>
+                <th class="num sortable" data-sort="pattern">Pat.<span class="sort-ind"></span></th>
+                <th class="num sortable" data-sort="total">Total<span class="sort-ind"></span></th>
+                <th class="sortable" data-sort="when">Date<span class="sort-ind"></span></th>
+                <th class="act" aria-label="Delete"></th>
+              </tr>
+            </thead>
+            <tbody id="log-body"></tbody>
+          </table>
+        </div>
+        <div class="row" style="margin-top:14px;">
+          <button id="btn-log-back" class="btn">Back to the Dig</button>
+        </div>
+        <div class="reports">
+          <h3>Field Reports &middot; last 30 days</h3>
+          <div class="report-buttons">
+            <button type="button" class="btn" data-report="top">Top Scorer</button>
+            <button type="button" class="btn" data-report="consistent">Most Consistent</button>
+            <button type="button" class="btn" data-report="daily">Avg by Day (60d)</button>
+          </div>
+          <div id="report-out" class="report-out" aria-live="polite"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Field journal for the FTC Decode expedition
+  </footer>
+</div>
+
+<script>
+(() => {
+  // ---------- View switching ----------
+  const views = {
+    setup:     document.getElementById('view-setup'),
+    countdown: document.getElementById('view-countdown'),
+    match:     document.getElementById('view-match'),
+    post:      document.getElementById('view-post'),
+    result:    document.getElementById('view-result'),
+    log:       document.getElementById('view-log'),
+    team:      document.getElementById('view-team'),
+  };
+  function show(name){
+    Object.values(views).forEach(v => v.classList.remove('active'));
+    views[name].classList.add('active');
+  }
+
+  // ---------- State ----------
+  const STORAGE_KEY = 'digSiteScores.v1';
+  const MATCH_SECONDS = 120;
+  let state = newMatchState();
+
+  function newMatchState(){
+    return {
+      name: '',
+      hits: 0,
+      overflow: 0,
+      park: null,         // 'full' | 'partial' | 'none'
+      pattern: null,      // 0..9
+      timeLeft: MATCH_SECONDS,
+    };
+  }
+
+  // ---------- TTS ----------
+  function speak(text){
+    try{
+      if (!('speechSynthesis' in window)) return;
+      const u = new SpeechSynthesisUtterance(text);
+      u.rate = 1.0; u.pitch = 1.0; u.volume = 1.0;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(u);
+    }catch(e){ /* ignore */ }
+  }
+
+  // Pre-warm speech on first user gesture (iOS unlock).
+  let speechPrimed = false;
+  function primeSpeech(){
+    if (speechPrimed) return;
+    try{
+      const u = new SpeechSynthesisUtterance(' ');
+      u.volume = 0;
+      window.speechSynthesis.speak(u);
+      speechPrimed = true;
+    }catch(e){}
+  }
+
+  // ---------- Setup view ----------
+  const nameInput = document.getElementById('name-input');
+  const nameSelect = document.getElementById('name-select');
+  const nameFallback = document.getElementById('name-fallback');
+  const TEAM_KEY = 'digSiteScores.team';
+  const LAST_NAME_KEY = 'digSiteScores.lastName';
+
+  function loadTeam(){
+    try{
+      const raw = localStorage.getItem(TEAM_KEY);
+      if (!raw) return [];
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr.filter(s => typeof s === 'string') : [];
+    }catch(e){ return []; }
+  }
+  function saveTeam(team){
+    try{ localStorage.setItem(TEAM_KEY, JSON.stringify(team)); }catch(e){}
+  }
+  function populateNameSelect(){
+    const team = loadTeam();
+    const last = localStorage.getItem(LAST_NAME_KEY) || '';
+    if (!team.length){
+      nameSelect.innerHTML = '';
+      nameSelect.style.display = 'none';
+      nameFallback.style.display = '';
+      if (last) nameInput.value = last;
+      return;
+    }
+    nameSelect.style.display = '';
+    nameFallback.style.display = 'none';
+    nameSelect.innerHTML = team
+      .map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`)
+      .join('');
+    if (last && team.includes(last)) nameSelect.value = last;
+  }
+  function getSelectedName(){
+    const team = loadTeam();
+    if (team.length) return (nameSelect.value || '').trim();
+    return (nameInput.value || '').trim();
+  }
+
+  document.getElementById('btn-start').addEventListener('click', () => {
+    const name = getSelectedName();
+    if (!name){
+      const target = loadTeam().length ? nameSelect : nameInput;
+      target.focus();
+      target.style.borderColor = 'var(--terracotta)';
+      setTimeout(() => target.style.borderColor = '', 1200);
+      return;
+    }
+    primeSpeech();
+    state = newMatchState();
+    state.name = name;
+    localStorage.setItem(LAST_NAME_KEY, name);
+    startCountdown();
+  });
+
+  // ---------- Dig Team management ----------
+  const teamListEl = document.getElementById('team-list');
+  const teamAddInput = document.getElementById('team-add-input');
+
+  function renderTeam(){
+    const team = loadTeam();
+    if (!team.length){
+      teamListEl.innerHTML = `<li class="team-empty">No team members yet. Add one below.</li>`;
+      return;
+    }
+    teamListEl.innerHTML = team.map((n, i) => `
+      <li>
+        <span class="name">${escapeHtml(n)}</span>
+        <button type="button" class="btn-del" data-team-del="${i}" aria-label="Remove ${escapeHtml(n)}" title="Remove">✕</button>
+      </li>
+    `).join('');
+  }
+  function addTeamMember(name){
+    const trimmed = (name || '').trim();
+    if (!trimmed) return false;
+    const team = loadTeam();
+    if (team.some(n => n.toLowerCase() === trimmed.toLowerCase())){
+      alert(`“${trimmed}” is already on the dig team.`);
+      return false;
+    }
+    team.push(trimmed);
+    saveTeam(team);
+    renderTeam();
+    populateNameSelect();
+    return true;
+  }
+  function removeTeamMember(index){
+    const team = loadTeam();
+    if (index < 0 || index >= team.length) return;
+    const name = team[index];
+    if (!confirm(`Remove “${name}” from the dig team? Past dig records will be kept.`)) return;
+    team.splice(index, 1);
+    saveTeam(team);
+    renderTeam();
+    populateNameSelect();
+  }
+
+  document.getElementById('btn-manage-team').addEventListener('click', () => {
+    renderTeam();
+    teamAddInput.value = '';
+    show('team');
+    setTimeout(() => teamAddInput.focus(), 50);
+  });
+  document.getElementById('btn-team-back').addEventListener('click', () => {
+    populateNameSelect();
+    show('setup');
+  });
+  document.getElementById('btn-team-add').addEventListener('click', () => {
+    if (addTeamMember(teamAddInput.value)){
+      teamAddInput.value = '';
+      teamAddInput.focus();
+    }
+  });
+  teamAddInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter'){
+      e.preventDefault();
+      if (addTeamMember(teamAddInput.value)){
+        teamAddInput.value = '';
+      }
+    }
+  });
+  teamListEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-team-del]');
+    if (!btn) return;
+    const idx = parseInt(btn.getAttribute('data-team-del'), 10);
+    if (!Number.isNaN(idx)) removeTeamMember(idx);
+  });
+
+  populateNameSelect();
+
+  document.getElementById('btn-show-log').addEventListener('click', () => {
+    renderLog();
+    reportOut.innerHTML = '';
+    setReportSelected(null);
+    show('log');
+  });
+
+  // ---------- Countdown ----------
+  const cdNum = document.getElementById('countdown-num');
+  const cdLabel = document.getElementById('countdown-label');
+
+  function startCountdown(){
+    show('countdown');
+    const seq = ['3','2','1','GO'];
+    let i = 0;
+    const step = () => {
+      const v = seq[i];
+      cdNum.textContent = v;
+      cdNum.style.animation = 'none';
+      // force reflow to restart animation
+      void cdNum.offsetWidth;
+      cdNum.style.animation = '';
+      cdLabel.textContent = (v === 'GO') ? 'Begin the dig!' : 'Get ready...';
+      speak(v === 'GO' ? 'Go!' : v);
+      i++;
+      if (i < seq.length){
+        setTimeout(step, 1000);
+      } else {
+        setTimeout(startMatch, 700);
+      }
+    };
+    step();
+  }
+
+  // ---------- Match ----------
+  const timerEl = document.getElementById('timer');
+  const hitsLine = document.getElementById('hits-line');
+  const plus3Btn = document.getElementById('plus3');
+  const artifactBtn = document.getElementById('btn-artifact');
+  const overflowBtn = document.getElementById('btn-overflow');
+  const floaters = document.getElementById('floaters');
+  const stopEarlyBtn = document.getElementById('btn-stop-early');
+
+  let tickHandle = null;
+  let endsAt = 0;
+
+  function startMatch(){
+    state.timeLeft = MATCH_SECONDS;
+    state.hits = 0;
+    state.overflow = 0;
+    updateTimer();
+    updateHitsLine();
+    show('match');
+    endsAt = performance.now() + MATCH_SECONDS * 1000;
+    if (tickHandle) cancelAnimationFrame(tickHandle);
+    const loop = () => {
+      const remainMs = Math.max(0, endsAt - performance.now());
+      state.timeLeft = Math.ceil(remainMs / 1000);
+      updateTimer();
+      if (remainMs <= 0){
+        endMatch();
+        return;
+      }
+      tickHandle = requestAnimationFrame(loop);
+    };
+    tickHandle = requestAnimationFrame(loop);
+  }
+
+  function updateTimer(){
+    const t = Math.max(0, state.timeLeft);
+    const m = Math.floor(t / 60);
+    const s = t % 60;
+    timerEl.textContent = `${m}:${String(s).padStart(2,'0')}`;
+    timerEl.classList.toggle('warn', t <= 30 && t > 10);
+    timerEl.classList.toggle('crit', t <= 10);
+  }
+  function updateHitsLine(){
+    const total = state.hits * 3 + (state.overflow || 0);
+    const totalArt = state.hits + (state.overflow || 0);
+    hitsLine.textContent = `${totalArt} artifact${totalArt === 1 ? '' : 's'} \u00b7 ${total} pts`;
+  }
+
+  function scoreHit(btn, e, kind){
+    if (!views.match.classList.contains('active')) return;
+    if (kind === 'overflow') state.overflow = (state.overflow || 0) + 1;
+    else state.hits++;
+    updateHitsLine();
+    btn.classList.remove('flash');
+    void btn.offsetWidth;
+    btn.classList.add('flash');
+    spawnFloater(e, kind === 'overflow' ? '+1' : '+3');
+    if (navigator.vibrate) navigator.vibrate(15);
+  }
+
+  artifactBtn.addEventListener('click', (e) => scoreHit(artifactBtn, e, 'artifact'));
+  overflowBtn.addEventListener('click', (e) => scoreHit(overflowBtn, e, 'overflow'));
+
+  function spawnFloater(e, label){
+    const rect = views.match.getBoundingClientRect();
+    const x = (e.clientX || rect.left + rect.width/2) - rect.left;
+    const y = (e.clientY || rect.top  + rect.height/2) - rect.top;
+    const f = document.createElement('div');
+    f.className = 'floater';
+    f.style.left = (x - 18) + 'px';
+    f.style.top  = (y - 18) + 'px';
+    f.style.fontSize = (24 + Math.random() * 10) + 'px';
+    f.textContent = label || '+3';
+    floaters.appendChild(f);
+    setTimeout(() => f.remove(), 950);
+  }
+
+  stopEarlyBtn.addEventListener('click', () => {
+    if (confirm('End the dig early?')) endMatch();
+  });
+
+  function endMatch(){
+    if (tickHandle) cancelAnimationFrame(tickHandle);
+    tickHandle = null;
+    speak('Time!');
+    if (navigator.vibrate) navigator.vibrate([60, 60, 120]);
+    state.timeLeft = 0;
+    showPost();
+  }
+
+  // ---------- Post-match ----------
+  const parkRow = document.getElementById('park-row');
+  const patternGrid = document.getElementById('pattern-grid');
+  const tallyBtn = document.getElementById('btn-tally');
+
+  // Build the pattern grid 0..9
+  for (let i = 0; i <= 9; i++){
+    const b = document.createElement('button');
+    b.className = 'btn';
+    b.textContent = i;
+    b.dataset.pattern = i;
+    patternGrid.appendChild(b);
+  }
+
+  parkRow.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-park]');
+    if (!b) return;
+    state.park = b.dataset.park;
+    parkRow.querySelectorAll('button').forEach(x => x.classList.toggle('selected', x === b));
+    refreshTallyEnabled();
+  });
+
+  patternGrid.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-pattern]');
+    if (!b) return;
+    state.pattern = parseInt(b.dataset.pattern, 10);
+    patternGrid.querySelectorAll('button').forEach(x => x.classList.toggle('selected', x === b));
+    refreshTallyEnabled();
+  });
+
+  function refreshTallyEnabled(){
+    tallyBtn.disabled = !(state.park && state.pattern !== null);
+  }
+
+  function showPost(){
+    state.park = null;
+    state.pattern = null;
+    parkRow.querySelectorAll('button').forEach(x => x.classList.remove('selected'));
+    patternGrid.querySelectorAll('button').forEach(x => x.classList.remove('selected'));
+    refreshTallyEnabled();
+    show('post');
+  }
+
+  tallyBtn.addEventListener('click', () => {
+    const r = computeScore(state);
+    saveRun(r);
+    renderResult(r);
+    show('result');
+  });
+
+  // ---------- Scoring ----------
+  function computeScore(s){
+    const hitPts = s.hits * 3;
+    const overflow = s.overflow || 0;
+    const overflowPts = overflow * 1;
+    const parkPts = ({full:10, partial:5, none:0})[s.park] ?? 0;
+    const patPts = (s.pattern ?? 0) * 2;
+    return {
+      name: s.name,
+      hits: s.hits, hitPts,
+      overflow, overflowPts,
+      park: s.park, parkPts,
+      pattern: s.pattern, patPts,
+      total: hitPts + overflowPts + parkPts + patPts,
+      when: new Date().toISOString(),
+    };
+  }
+
+  // ---------- Result view ----------
+  const resultName = document.getElementById('result-name');
+  const resultTotal = document.getElementById('result-total');
+  const breakdownBody = document.getElementById('breakdown-body');
+  function renderResult(r){
+    resultName.textContent = r.name;
+    resultTotal.textContent = r.total;
+    const parkLabel = ({full:'Full Park', partial:'Partial Park', none:'No Park'})[r.park];
+    breakdownBody.innerHTML = `
+      <tr><td>Artifacts (${r.hits} &times; 3)</td><td>${r.hitPts}</td></tr>
+      <tr><td>Overflow Artifacts (${r.overflow || 0} &times; 1)</td><td>${r.overflowPts || 0}</td></tr>
+      <tr><td>${parkLabel}</td><td>${r.parkPts}</td></tr>
+      <tr><td>Glyph Pattern (${r.pattern} &times; 2)</td><td>${r.patPts}</td></tr>
+      <tr class="total-row"><td>Total</td><td>${r.total}</td></tr>
+    `;
+  }
+
+  document.getElementById('btn-again').addEventListener('click', () => {
+    nameInput.value = state.name || nameInput.value;
+    show('setup');
+  });
+  document.getElementById('btn-result-log').addEventListener('click', () => {
+    renderLog();
+    reportOut.innerHTML = '';
+    setReportSelected(null);
+    show('log');
+  });
+
+  // ---------- Saved scores ----------
+  function loadSaved(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return [];
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : [];
+    }catch(e){ return []; }
+  }
+  function saveRun(r){
+    const all = loadSaved();
+    all.unshift(r);
+    // cap at 200 entries
+    while (all.length > 200) all.pop();
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(all)); }
+    catch(e){ /* storage full */ }
+  }
+
+  const logBody = document.getElementById('log-body');
+  const logTable = document.getElementById('log-table');
+  // Default sort: newest first
+  let logSort = { key: 'when', dir: 'desc' };
+  const PARK_ORDER = { full: 3, partial: 2, none: 1 };
+  function sortValue(r, key){
+    switch (key){
+      case 'name':    return (r.name || '').toLowerCase();
+      case 'hits':    return Number(r.hits) || 0;
+      case 'park':    return PARK_ORDER[r.park] || 0;
+      case 'pattern': return Number(r.pattern) || 0;
+      case 'total':   return Number(r.total) || 0;
+      case 'when':    {
+        const t = new Date(r.when).getTime();
+        return isNaN(t) ? 0 : t;
+      }
+      default: return 0;
+    }
+  }
+  function updateSortIndicators(){
+    logTable.querySelectorAll('th.sortable').forEach(th => {
+      const ind = th.querySelector('.sort-ind');
+      if (!ind) return;
+      ind.textContent = th.dataset.sort === logSort.key
+        ? (logSort.dir === 'asc' ? '\u25b2' : '\u25bc')
+        : '';
+    });
+  }
+  function renderLog(){
+    const all = loadSaved();
+    updateSortIndicators();
+    if (!all.length){
+      logBody.innerHTML = `<tr><td colspan="8" class="empty">No expeditions logged yet.</td></tr>`;
+      return;
+    }
+    const dir = logSort.dir === 'asc' ? 1 : -1;
+    const sorted = all
+      .map((r, originalIdx) => ({ r, originalIdx }))
+      .sort((a, b) => {
+        const av = sortValue(a.r, logSort.key);
+        const bv = sortValue(b.r, logSort.key);
+        if (av < bv) return -1 * dir;
+        if (av > bv) return  1 * dir;
+        return a.originalIdx - b.originalIdx;
+      });
+    const parkShort = {full:'Full', partial:'Part.', none:'None'};
+    logBody.innerHTML = sorted.map(({ r, originalIdx }, i) => {
+      const d = new Date(r.when);
+      const dateStr = isNaN(d.getTime()) ? '' :
+        d.toLocaleString([], {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'});
+      return `<tr>
+        <td>${i + 1}</td>
+        <td>${escapeHtml(r.name || '')}</td>
+        <td class="num">${r.hits}</td>
+        <td>${parkShort[r.park] || ''}</td>
+        <td class="num">${r.pattern ?? ''}</td>
+        <td class="num"><b>${r.total}</b></td>
+        <td>${dateStr}</td>
+        <td class="act"><button type="button" class="btn-del" data-del="${originalIdx}" aria-label="Delete entry for ${escapeHtml(r.name || 'this dig')}" title="Delete this dig">✕</button></td>
+      </tr>`;
+    }).join('');
+  }
+  logTable.querySelectorAll('th.sortable').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.sort;
+      if (logSort.key === key){
+        logSort.dir = logSort.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        logSort.key = key;
+        // Sensible defaults: numeric & date columns desc, text asc
+        logSort.dir = (key === 'name' || key === 'park') ? 'asc' : 'desc';
+      }
+      renderLog();
+    });
+  });
+  function deleteEntry(index){
+    const all = loadSaved();
+    if (index < 0 || index >= all.length) return;
+    const r = all[index];
+    const who = r && r.name ? r.name : 'this dig';
+    if (!confirm(`Delete the dig for "${who}" (Total ${r ? r.total : ''})? This cannot be undone.`)) return;
+    all.splice(index, 1);
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(all)); }catch(e){}
+    renderLog();
+  }
+  logBody.addEventListener('click', (e) => {
+    const btn = e.target.closest('.btn-del');
+    if (!btn) return;
+    const idx = parseInt(btn.getAttribute('data-del'), 10);
+    if (!Number.isNaN(idx)) deleteEntry(idx);
+  });
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[c]));
+  }
+
+  document.getElementById('btn-log-back').addEventListener('click', () => show('setup'));
+
+  // ---------- Reports (last 30 days) ----------
+  const reportOut = document.getElementById('report-out');
+  const reportButtons = document.querySelectorAll('.report-buttons .btn[data-report]');
+
+  function recentRuns(days = 30){
+    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+    return loadSaved().filter(r => {
+      const t = new Date(r.when).getTime();
+      return !isNaN(t) && t >= cutoff && r && typeof r.total === 'number' && r.name;
+    });
+  }
+  function groupByName(runs){
+    const map = new Map();
+    for (const r of runs){
+      const key = r.name.trim();
+      if (!key) continue;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(r.total);
+    }
+    return map;
+  }
+  function mean(a){ return a.reduce((s,x)=>s+x,0) / a.length; }
+  function variance(a){
+    if (a.length < 2) return 0;
+    const m = mean(a);
+    return a.reduce((s,x)=>s+(x-m)*(x-m),0) / a.length;
+  }
+  function setReportSelected(key){
+    reportButtons.forEach(b => b.classList.toggle('selected', b.dataset.report === key));
+  }
+  function renderEmptyReport(label){
+    reportOut.innerHTML = `<div class="detail">No qualifying digs in the last 30 days for “${label}”.</div>`;
+  }
+  function reportTopScorer(){
+    const runs = recentRuns(30);
+    if (!runs.length){ renderEmptyReport('Top Scorer'); return; }
+    const groups = groupByName(runs);
+    let best = null;
+    for (const [name, totals] of groups){
+      const avg = mean(totals);
+      if (!best || avg > best.avg){
+        best = { name, avg, n: totals.length };
+      }
+    }
+    if (!best){ renderEmptyReport('Top Scorer'); return; }
+    reportOut.innerHTML = `
+      <div class="headline">★ ${escapeHtml(best.name)} — avg ${best.avg.toFixed(1)}</div>
+      <div class="detail">Highest average score across ${best.n} dig${best.n===1?'':'s'} in the last 30 days.</div>
+    `;
+  }
+  function reportMostConsistent(){
+    const runs = recentRuns(30);
+    const groups = groupByName(runs);
+    // need at least 2 digs to measure consistency
+    let best = null;
+    for (const [name, totals] of groups){
+      if (totals.length < 2) continue;
+      const v = variance(totals);
+      const sd = Math.sqrt(v);
+      if (!best || v < best.v) best = { name, v, sd, n: totals.length, avg: mean(totals) };
+    }
+    if (!best){
+      reportOut.innerHTML = `<div class="detail">Need at least one archaeologist with 2+ digs in the last 30 days to measure consistency.</div>`;
+      return;
+    }
+    reportOut.innerHTML = `
+      <div class="headline">◆ ${escapeHtml(best.name)} — avg ${best.avg.toFixed(1)} ± ${best.sd.toFixed(1)}</div>
+      <div class="detail">Smallest score variance across ${best.n} digs in the last 30 days.</div>
+    `;
+  }
+  reportButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.report;
+      setReportSelected(key);
+      if (key === 'top') reportTopScorer();
+      else if (key === 'consistent') reportMostConsistent();
+      else if (key === 'daily') reportDailyAverages();
+    });
+  });
+
+  function reportDailyAverages(){
+    const days = 60;
+    const runs = recentRuns(days);
+    if (!runs.length){ renderEmptyReport('Avg by Day (60d)'); return; }
+    // Bucket by local YYYY-MM-DD
+    const buckets = new Map();
+    for (const r of runs){
+      const d = new Date(r.when);
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      if (!buckets.has(key)) buckets.set(key, { totals: [], date: new Date(d.getFullYear(), d.getMonth(), d.getDate()) });
+      buckets.get(key).totals.push(r.total);
+    }
+    // Oldest -> newest along x-axis
+    const data = [...buckets.entries()]
+      .sort((a,b) => a[0] < b[0] ? -1 : 1)
+      .map(([key, v]) => ({ key, date: v.date, avg: mean(v.totals), n: v.totals.length }));
+
+    // Chart geometry
+    const barW = 28;
+    const gap = 10;
+    const padL = 40, padR = 14, padT = 14, padB = 44;
+    const innerW = data.length * barW + (data.length - 1) * gap;
+    const width = Math.max(innerW + padL + padR, 320);
+    const height = 220;
+    const chartH = height - padT - padB;
+
+    const maxAvg = Math.max(...data.map(d => d.avg), 1);
+    // Round y-max up to a nice number
+    const niceMax = (() => {
+      const steps = [5, 10, 20, 25, 50, 100, 150, 200, 300, 500];
+      for (const s of steps) if (s >= maxAvg) return s;
+      return Math.ceil(maxAvg / 100) * 100;
+    })();
+    const ticks = 4;
+    const yScale = (v) => padT + chartH - (v / niceMax) * chartH;
+
+    const gridLines = Array.from({length: ticks + 1}, (_, i) => {
+      const val = (niceMax / ticks) * i;
+      const y = yScale(val);
+      return `
+        <line class="grid" x1="${padL}" y1="${y}" x2="${width - padR}" y2="${y}"/>
+        <text class="y-tick" x="${padL - 6}" y="${y + 3}">${val.toFixed(0)}</text>
+      `;
+    }).join('');
+
+    const bars = data.map((d, i) => {
+      const x = padL + i * (barW + gap);
+      const y = yScale(d.avg);
+      const h = padT + chartH - y;
+      const cx = x + barW / 2;
+      const label = d.date.toLocaleDateString([], { month: 'numeric', day: 'numeric' });
+      const title = `${d.date.toLocaleDateString([], { month:'short', day:'numeric', year:'numeric' })} \u2014 avg ${d.avg.toFixed(1)} across ${d.n} dig${d.n===1?'':'s'}`;
+      return `
+        <g>
+          <title>${escapeHtml(title)}</title>
+          <rect class="bar" x="${x}" y="${y}" width="${barW}" height="${Math.max(h, 1)}" rx="3"/>
+          <text class="bar-label" x="${cx}" y="${y - 4}">${d.avg.toFixed(0)}</text>
+          <text class="x-label" x="${cx}" y="${padT + chartH + 16}">${label}</text>
+        </g>
+      `;
+    }).join('');
+
+    const svg = `
+      <svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="Average score by day for the last ${days} days">
+        ${gridLines}
+        <line class="axis" x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + chartH}"/>
+        <line class="axis" x1="${padL}" y1="${padT + chartH}" x2="${width - padR}" y2="${padT + chartH}"/>
+        <text class="y-label" x="${padL - 30}" y="${padT + chartH / 2}" transform="rotate(-90 ${padL - 30} ${padT + chartH / 2})" text-anchor="middle">Avg Score</text>
+        ${bars}
+      </svg>
+    `;
+
+    reportOut.innerHTML = `
+      <div class="headline">● Daily Averages — last ${days} days</div>
+      <div class="detail" style="margin-bottom:8px;">${data.length} day${data.length===1?'':'s'} with digs.</div>
+      <div class="daily-chart">${svg}</div>
+    `;
+  }
+
+  // Avoid accidental double-tap zoom on iOS
+  document.addEventListener('gesturestart', e => e.preventDefault());
+})();
+</script>
+</body>
+</html>
